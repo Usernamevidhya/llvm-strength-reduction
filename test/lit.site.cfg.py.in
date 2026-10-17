@@ -1,0 +1,9 @@
+# Generated from lit.site.cfg.py.in by CMake -- do not edit the generated copy.
+import os
+
+config.plugin_path = r"@SR_PLUGIN_PATH@"
+config.llvm_tools_dir = r"@SR_LLVM_TOOLS_DIR@"
+config.project_source_dir = r"@SR_SOURCE_DIR@"
+config.project_binary_dir = r"@CMAKE_BINARY_DIR@"
+
+lit_config.load_config(config, os.path.join(config.project_source_dir, "test", "lit.cfg.py"))

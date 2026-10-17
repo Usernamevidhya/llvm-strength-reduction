@@ -1,0 +1,30 @@
+// C -> IR -> strength-reduce, checking the multiplies in samples/powers_of_two.c.
+// REQUIRES: clang
+//
+// RUN: clang --target=aarch64-linux-gnu -O1 -Xclang -disable-llvm-passes -fno-discard-value-names -S -emit-llvm %samples/powers_of_two.c -o - \
+// RUN:   | opt -passes=mem2reg -S -o %t.before.ll
+// RUN: %sr_opt -passes=strength-reduce -S %t.before.ll -o %t.after.ll
+// RUN: FileCheck %s --check-prefix=BEFORE < %t.before.ll
+// RUN: FileCheck %s --check-prefix=AFTER  < %t.after.ll
+
+// BEFORE-LABEL: define {{.*}} @mul2(
+// BEFORE:         mul nsw i32 %x, 2
+// BEFORE-LABEL: define {{.*}} @mul1024(
+// BEFORE:         mul nsw i32 1024, %x
+
+// AFTER-LABEL: define {{.*}} @mul2(
+// AFTER-NOT:     = mul 
+// AFTER:         shl nsw i32 %x, 1
+// AFTER-LABEL: define {{.*}} @mul8(
+// AFTER:         shl nsw i32 %x, 3
+// AFTER-LABEL: define {{.*}} @mul64(
+// AFTER:         shl nsw i32 %x, 6
+// AFTER-LABEL: define {{.*}} @mul1024(
+// AFTER:         shl nsw i32 %x, 10
+// AFTER-LABEL: define {{.*}} @mul4096_i64(
+// AFTER:         shl nsw i64 %x, 12
+// AFTER-LABEL: define {{.*}} @mul16_u32(
+// AFTER:         shl i32 %x, 4
+// AFTER-LABEL: define {{.*}} @sum_scaled(
+// AFTER-NOT:     = mul 
+// AFTER:         shl nsw i32 %{{.*}}, 5

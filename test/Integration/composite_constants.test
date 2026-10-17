@@ -1,0 +1,44 @@
+// C -> IR -> strength-reduce, checking samples/composite_constants.c.
+// REQUIRES: clang
+//
+// RUN: clang --target=aarch64-linux-gnu -O1 -Xclang -disable-llvm-passes -fno-discard-value-names -S -emit-llvm %samples/composite_constants.c -o - \
+// RUN:   | opt -passes=mem2reg -S -o %t.before.ll
+// RUN: %sr_opt -passes=strength-reduce -S %t.before.ll -o %t.after.ll
+// RUN: FileCheck %s --check-prefix=BEFORE < %t.before.ll
+// RUN: FileCheck %s --check-prefix=AFTER  < %t.after.ll
+
+// BEFORE-LABEL: define {{.*}} @mul9(
+// BEFORE:         mul nsw i32 %x, 9
+
+// x*9 = (x<<3) + x, with nsw preserved on the add form
+// AFTER-LABEL: define {{.*}} @mul9(
+// AFTER-NOT:     = mul 
+// AFTER:         %[[S9:.*]] = shl nsw i32 %x, 3
+// AFTER-NEXT:    add nsw i32 %[[S9]], %x
+
+// x*10 = (x<<3) + (x<<1)
+// AFTER-LABEL: define {{.*}} @mul10(
+// AFTER:         shl nsw i32 %x, 3
+// AFTER-NEXT:    shl nsw i32 %x, 1
+// AFTER-NEXT:    add nsw
+
+// x*7 = (x<<3) - x  (flags dropped)
+// AFTER-LABEL: define {{.*}} @mul7(
+// AFTER:         %[[S7:.*]] = shl i32 %x, 3
+// AFTER-NEXT:    sub i32 %[[S7]], %x
+
+// x*15 = (x<<4) - x
+// AFTER-LABEL: define {{.*}} @mul15(
+// AFTER:         shl i32 %x, 4
+// AFTER-NEXT:    sub i32
+
+// Non-reducible constants survive.
+// AFTER-LABEL: define {{.*}} @mul11(
+// AFTER:         mul nsw i32 %x, 11
+// AFTER-LABEL: define {{.*}} @mul100(
+// AFTER:         mul nsw i32 %x, 100
+
+// 64-bit: x * (2^32 + 1)
+// AFTER-LABEL: define {{.*}} @mul_big(
+// AFTER:         shl {{.*}}i64 %x, 32
+// AFTER-NEXT:    add

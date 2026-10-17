@@ -1,0 +1,17 @@
+# build products
+build/
+out/
+*.o
+*.so
+*.dylib
+*.dll
+
+# lit / editor / OS noise
+.lit_test_times.txt
+Output/
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+.DS_Store
+compile_commands.json

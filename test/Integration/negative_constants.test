@@ -1,0 +1,43 @@
+// C -> IR -> strength-reduce, checking samples/negative_constants.c.
+// REQUIRES: clang
+//
+// RUN: clang --target=aarch64-linux-gnu -O1 -Xclang -disable-llvm-passes -fno-discard-value-names -S -emit-llvm %samples/negative_constants.c -o - \
+// RUN:   | opt -passes=mem2reg -S -o %t.before.ll
+// RUN: %sr_opt -passes=strength-reduce -S %t.before.ll -o %t.after.ll
+// RUN: FileCheck %s --check-prefix=BEFORE < %t.before.ll
+// RUN: FileCheck %s --check-prefix=AFTER  < %t.after.ll
+
+// BEFORE-LABEL: define {{.*}} @mulm8(
+// BEFORE:         mul nsw i32 %x, -8
+
+// AFTER-LABEL: define {{.*}} @mulm1(
+// AFTER-NOT:     = mul 
+// AFTER:         sub i32 0, %x
+
+// -8 -> 0 - (x << 3)
+// AFTER-LABEL: define {{.*}} @mulm8(
+// AFTER:         %[[S:.*]] = shl i32 %x, 3
+// AFTER-NEXT:    sub i32 0, %[[S]]
+
+// -3 -> x - (x << 2)   (sub form absorbs the negate)
+// AFTER-LABEL: define {{.*}} @mulm3(
+// AFTER:         %[[S3:.*]] = shl i32 %x, 2
+// AFTER-NEXT:    sub i32 %x, %[[S3]]
+
+// -7 -> x - (x << 3)   (no negate needed)
+// AFTER-LABEL: define {{.*}} @mulm7(
+// AFTER:         %[[S7:.*]] = shl i32 %x, 3
+// AFTER-NEXT:    sub i32 %x, %[[S7]]
+
+// Not reducible.
+// AFTER-LABEL: define {{.*}} @mulm100(
+// AFTER:         mul nsw i32 %x, -100
+
+// INT_MIN -> x << 31, with nsw dropped
+// AFTER-LABEL: define {{.*}} @mul_int_min(
+// AFTER:         shl i32 %x, 31
+
+// -5 (i64) is two bits but not a run -> -((x << 2) + x)
+// AFTER-LABEL: define {{.*}} @mulm5_i64(
+// AFTER:         shl i64 %x, 2
+// AFTER:         sub i64 0,
